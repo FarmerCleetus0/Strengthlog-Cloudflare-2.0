@@ -10,7 +10,7 @@
     {
       "binding": "DB",
       "database_name": "strength-log",
-      "database_id": "PASTE-YOUR-D1-DATABASE-ID-HERE",
+      "database_id": "2e1f6cb3-54b3-4109-a41e-da349607565c",
       "migrations_dir": "migrations"
     }
   ],
