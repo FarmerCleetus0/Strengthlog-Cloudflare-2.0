@@ -1,0 +1,23 @@
+{
+  "name": "strength-log",
+  "main": "src/index.js",
+  "compatibility_date": "2025-09-01",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "strength-log",
+      "database_id": "PASTE-YOUR-D1-DATABASE-ID-HERE",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "PHOTOS",
+      "bucket_name": "strength-log-photos"
+    }
+  ]
+}
