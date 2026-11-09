@@ -1,6 +1,6 @@
-import { json, bad, DEV_RE, claude, NO_KEY } from "./util.js";
+import { json, bad, DEV_RE, askJSON, hasAI, NO_KEY } from "./util.js";
 
-const MODEL = "claude-sonnet-5-5";
+const CLAUDE_MODEL = "claude-sonnet-5-5"; // only used if an ANTHROPIC_API_KEY secret is set
 const GROUPS = ["Chest", "Front delts", "Side delts", "Rear delts", "Traps", "Lats", "Lower back", "Biceps", "Triceps", "Brachialis", "Forearms", "Abs", "Obliques", "Quads", "Hamstrings", "Glutes", "Adductors", "Calves"];
 
 const TOOL = {
@@ -45,7 +45,7 @@ export async function handleMuscles(req, env) {
   if (req.method !== "POST") return bad("Not found", 404);
   const device = req.headers.get("x-device-id") ?? "";
   if (!DEV_RE.test(device)) return bad("Missing device id", 401);
-  if (!env.ANTHROPIC_API_KEY) return bad(NO_KEY, 503);
+  if (!hasAI(env)) return bad(NO_KEY, 503);
   const body = await req.json().catch(() => null);
   const names = Array.isArray(body?.names)
     ? [...new Set(body.names.filter((n) => typeof n === "string").map((n) => n.trim().slice(0, 80)).filter(Boolean))].slice(0, 40)
@@ -53,16 +53,12 @@ export async function handleMuscles(req, env) {
   if (!names.length) return bad("No exercises");
 
   try {
-    const msg = await claude(env, {
-      model: MODEL,
-      max_tokens: 2000,
-      system: SYSTEM,
-      tools: [TOOL],
-      tool_choice: { type: "tool", name: "report_muscles" },
-      messages: [{ role: "user", content: "Exercises:\n" + names.map((n) => "- " + n).join("\n") }],
+    const out = await askJSON(env, {
+      claudeModel: CLAUDE_MODEL, system: SYSTEM, schema: TOOL.input_schema, toolName: TOOL.name, toolDescription: TOOL.description,
+      force: true, maxTokens: 2000,
+      content: [{ type: "text", text: "Exercises:\n" + names.map((n) => "- " + n).join("\n") }],
     });
-    const tool = (msg.content || []).find((b) => b.type === "tool_use");
-    const list = tool?.input?.exercises;
+    const list = out?.exercises;
     if (!Array.isArray(list)) return bad("Couldn't work out the muscles. Try again.", 502);
     const valid = new Set(GROUPS);
     const byLower = new Map(names.map((n) => [n.toLowerCase(), n]));

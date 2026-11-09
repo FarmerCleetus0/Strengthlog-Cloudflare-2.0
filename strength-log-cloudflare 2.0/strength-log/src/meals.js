@@ -1,6 +1,6 @@
-import { json, bad, DEV_RE, DAY_RE, num, round1, parseJ, claude, NO_KEY } from "./util.js";
+import { json, bad, DEV_RE, DAY_RE, num, round1, parseJ, askJSON, hasAI, NO_KEY } from "./util.js";
 
-const MODEL = "claude-sonnet-5-5";
+const CLAUDE_MODEL = "claude-sonnet-5-5"; // only used if an ANTHROPIC_API_KEY secret is set
 const MAX_IMAGE_BYTES = 4_000_000;
 const MAX_IMAGES = 4;
 const KEY_RE = /^[0-9a-f-]{36}$/;
@@ -78,7 +78,7 @@ const SYSTEM = `You are a sports nutritionist estimating macronutrients for a fi
 - Always call the report_macros tool.`;
 
 async function analyze(req, env) {
-  if (!env.ANTHROPIC_API_KEY) return bad(NO_KEY, 503);
+  if (!hasAI(env)) return bad(NO_KEY, 503);
   const body = await req.json().catch(() => null);
   if (!body) return bad("Invalid request");
   const note = typeof body.note === "string" ? body.note.slice(0, 300).trim() : "";
@@ -89,7 +89,7 @@ async function analyze(req, env) {
   const content = [];
   imgs.forEach((img, i) => {
     if (imgs.length > 1) content.push({ type: "text", text: `Photo ${i + 1}:` });
-    content.push({ type: "image", source: { type: "base64", media_type: img.mediaType, data: img.data } });
+    content.push({ type: "image", mediaType: img.mediaType, data: img.data });
   });
   const what = imgs.length > 1 ? `these ${imgs.length} photos of one meal` : "this food";
   content.push({
@@ -100,13 +100,11 @@ async function analyze(req, env) {
   });
 
   try {
-    const msg = await claude(env, {
-      model: MODEL, max_tokens: 1500, system: SYSTEM, tools: [MACRO_TOOL], tool_choice: { type: "auto" },
-      messages: [{ role: "user", content }],
+    const r = await askJSON(env, {
+      claudeModel: CLAUDE_MODEL, system: SYSTEM, schema: MACRO_TOOL.input_schema, toolName: MACRO_TOOL.name, toolDescription: MACRO_TOOL.description,
+      force: false, maxTokens: 1500, content,
     });
-    const tool = (msg.content || []).find((b) => b.type === "tool_use");
-    if (!tool) return bad("Couldn't estimate this one. Try another photo.", 502);
-    const r = tool.input || {};
+    if (!r) return bad("Couldn't estimate this one. Try another photo.", 502);
     if (r.is_food === false) return bad("No food or nutrition label found in that photo.", 422);
     const items = Array.isArray(r.items)
       ? r.items.slice(0, 20).map((i) => ({
